@@ -84,7 +84,42 @@ In existing terminals: `export NVM_DIR="$HOME/.nvm" && source "$NVM_DIR/nvm.sh"`
 - [ ] FeedbackButtons
 - [ ] Deploy backend to Fly.io, frontend to Vercel
 
-### Phase 4–8 — see original design doc in conversation history
+### Phase 4–8
+- Phase 4: sentence-transformer track embeddings, pgvector HNSW index, ANN retrieval
+- Phase 5: K-Means multi-playlist clustering, Spotify OAuth, history-based user embeddings
+- Phase 6: feedback loop — FeedbackEvent storage + online preference vector updates
+- Phase 7: LLM intent extraction (Claude API), LightGBM ranker, evaluation metrics
+- Phase 8: rate limiting, pagination, tests, README architecture diagram, demo video
+
+## Potential data model (reference for Phase 1)
+
+### Track
+- id (UUID PK), spotify_id (str, unique), title, artist, album, release_year, popularity
+- audio features: energy, valence, tempo, danceability, acousticness, instrumentalness, liveness, speechiness, loudness, mode, key
+- genres (ARRAY of str), embedding (Vector(384) — null until Phase 4), indexed_at
+
+### User
+- id (UUID PK), spotify_user_id (str, nullable — null for anonymous users), created_at
+- preference_embedding (Vector(384)), preference_source (enum: QUESTIONNAIRE/HISTORY/HYBRID), preference_updated_at
+- liked_track_ids (ARRAY UUID), disliked_track_ids (ARRAY UUID)
+
+### IntentSession
+- id (UUID PK), user_id (FK), source (enum: QUESTIONNAIRE/NLP_PROMPT)
+- raw_input (JSON — questionnaire answers or prompt string)
+- extracted_intent (JSON — structured: {energy, valence, genres, tempo_range, ...})
+- intent_embedding (Vector(384)), created_at
+
+### Playlist
+- id (UUID PK), user_id (FK), intent_session_id (FK nullable)
+- name, theme_label, track_ids (ARRAY UUID — ordered)
+- generation_mode (enum: PLAYLIST_GEN/RECOMMENDATION), created_at
+- feedback (enum: SAVED/DISMISSED/EDITED), edited_track_ids (ARRAY UUID nullable)
+
+### FeedbackEvent
+- id (UUID PK), user_id (FK), track_id (FK nullable), playlist_id (FK nullable)
+- type (enum: LIKE/DISLIKE/SKIP/SAVE_PLAYLIST/EDIT_PLAYLIST/DISMISS)
+- position (int nullable — rank position when feedback occurred)
+- context_playlist_id (FK nullable), created_at
 
 ## User preferences
 - Explain design decisions before writing code, not after
