@@ -8,6 +8,7 @@ from app.core.config import settings
 from app.core.database import AsyncSessionLocal, engine
 
 
+# TODO: change the name of this directory / associated repo from spotify-playlist-recommender to playlist-recommender
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     yield
