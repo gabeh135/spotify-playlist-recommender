@@ -20,6 +20,9 @@ class Settings(BaseSettings):
 
     anthropic_api_key: str = ""
 
+    lastfm_api_key: str = ""
+    lastfm_api_secret: str = ""
+
     @property
     def active_database_url(self) -> str:
         if self.environment == "development" and self.local_database_url:
