@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
+from app.api.routes import collection, tracks, users
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal, engine
 
@@ -29,6 +30,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+app.include_router(users.router)
+app.include_router(tracks.router)
+app.include_router(collection.router)
 
 @app.get("/health")
 async def health():

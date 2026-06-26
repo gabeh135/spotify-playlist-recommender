@@ -1,0 +1,234 @@
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.database import get_db
+from app.core.deps import get_current_user
+from app.ml.encoders.embed import embed_text
+from app.models import CollectionSource, CollectionTrack, Track, User
+from app.services.lastfm_client import LastFmClient
+from app.services.spotify_client import SpotifyClient
+
+router = APIRouter(prefix="/collection", tags=["collection"])
+
+spotify = SpotifyClient()
+lastfm = LastFmClient()
+
+
+def _parse_playlist_id(url_or_id: str) -> str:
+    if url_or_id.startswith("http"):
+        return url_or_id.split("?")[0].split("/")[-1]
+    return url_or_id
+
+
+class AddTrackRequest(BaseModel):
+    spotify_id: str
+
+
+class ImportPlaylistRequest(BaseModel):
+    playlist_url: str
+
+
+class CollectionTrackResponse(BaseModel):
+    track_id: str
+    spotify_id: str
+    title: str
+    artist: str
+    album: str
+    release_year: int | None
+    added_at: str
+    source: str
+
+
+@router.post("/tracks", status_code=201)
+async def add_track(
+    body: AddTrackRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(Track).where(Track.spotify_id == body.spotify_id))
+    track = result.scalar_one_or_none()
+
+    if track is None:
+        raw = spotify.get_track(body.spotify_id)
+        if raw is None:
+            raise HTTPException(status_code=404, detail="Track not found on Spotify")
+
+        artist_id = raw["artists"][0]["id"]
+        artist_name = raw["artists"][0]["name"]
+        title = raw["name"]
+        album = raw.get("album", {}).get("name", "")
+
+        release_year = None
+        rd = raw.get("album", {}).get("release_date", "")
+        if rd:
+            try:
+                release_year = int(rd[:4])
+            except ValueError:
+                pass
+
+        genre_map = spotify.get_artist_genres([artist_id])
+        genres = genre_map.get(artist_id, [])
+        tags = lastfm.get_track_tags(artist_name, title)
+
+        embedding_input = f"{title} by {artist_name}. Genres: {', '.join(genres)}. Tags: {', '.join(tags)}"
+        embedding = embed_text(embedding_input)
+
+        track = Track(
+            spotify_id=body.spotify_id,
+            title=title,
+            artist=artist_name,
+            album=album,
+            release_year=release_year,
+            genres=genres,
+            tags=tags,
+            embedding=embedding,
+            enriched_at=datetime.now(timezone.utc),
+        )
+        db.add(track)
+        await db.flush()
+
+    existing = await db.execute(
+        select(CollectionTrack).where(
+            CollectionTrack.user_id == user.id,
+            CollectionTrack.track_id == track.id,
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="Track already in collection")
+
+    ct = CollectionTrack(
+        user_id=user.id,
+        track_id=track.id,
+        source=CollectionSource.SEARCH,
+    )
+    db.add(ct)
+    await db.commit()
+
+    return {"track_id": track.id, "spotify_id": track.spotify_id, "title": track.title}
+
+
+@router.post("/import/playlist", status_code=201)
+async def import_playlist(
+    body: ImportPlaylistRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    playlist_id = _parse_playlist_id(body.playlist_url)
+
+    try:
+        raw_tracks = spotify.get_playlist_tracks(playlist_id)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Spotify error: {e}")
+
+    if not raw_tracks:
+        raise HTTPException(status_code=404, detail="Playlist not found or empty")
+
+    raw_tracks = [t for t in raw_tracks if t.get("id")]
+
+    spotify_ids = [t["id"] for t in raw_tracks]
+    result = await db.execute(select(Track).where(Track.spotify_id.in_(spotify_ids)))
+    known_tracks: dict[str, Track] = {t.spotify_id: t for t in result.scalars().all()}
+
+    new_raw = [t for t in raw_tracks if t["id"] not in known_tracks]
+
+    artist_ids = list({t["artists"][0]["id"] for t in new_raw})
+    genre_map = spotify.get_artist_genres(artist_ids) if artist_ids else {}
+
+    track_pairs = [(t["artists"][0]["name"], t["name"]) for t in new_raw]
+    tags_map = lastfm.get_track_tags_batch(track_pairs) if track_pairs else {}
+
+    new_tracks: dict[str, Track] = {}
+    for raw in new_raw:
+        artist_id = raw["artists"][0]["id"]
+        artist_name = raw["artists"][0]["name"]
+        title = raw["name"]
+        album = raw.get("album", {}).get("name", "")
+
+        release_year = None
+        rd = raw.get("album", {}).get("release_date", "")
+        if rd:
+            try:
+                release_year = int(rd[:4])
+            except ValueError:
+                pass
+
+        genres = genre_map.get(artist_id, [])
+        tags = tags_map.get((artist_name, title), [])
+
+        embedding_input = f"{title} by {artist_name}. Genres: {', '.join(genres)}. Tags: {', '.join(tags)}"
+        embedding = embed_text(embedding_input)
+
+        track = Track(
+            spotify_id=raw["id"],
+            title=title,
+            artist=artist_name,
+            album=album,
+            release_year=release_year,
+            genres=genres,
+            tags=tags,
+            embedding=embedding,
+            enriched_at=datetime.now(timezone.utc),
+        )
+        db.add(track)
+        new_tracks[raw["id"]] = track
+
+    await db.flush()
+
+    all_tracks = {**known_tracks, **new_tracks}
+
+    all_track_ids = [t.id for t in all_tracks.values()]
+    result = await db.execute(
+        select(CollectionTrack.track_id).where(
+            CollectionTrack.user_id == user.id,
+            CollectionTrack.track_id.in_(all_track_ids),
+        )
+    )
+    already_collected = {row[0] for row in result.all()}
+
+    added = 0
+    for raw in raw_tracks:
+        track = all_tracks.get(raw["id"])
+        if track is None or track.id in already_collected:
+            continue
+        db.add(CollectionTrack(
+            user_id=user.id,
+            track_id=track.id,
+            source=CollectionSource.PLAYLIST_IMPORT,
+            source_spotify_playlist_id=playlist_id,
+        ))
+        added += 1
+
+    await db.commit()
+    return {"imported": added, "skipped": len(raw_tracks) - added}
+
+
+@router.get("/tracks", response_model=list[CollectionTrackResponse])
+async def get_collection(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Track, CollectionTrack)
+        .join(CollectionTrack, CollectionTrack.track_id == Track.id)
+        .where(CollectionTrack.user_id == user.id)
+        .order_by(CollectionTrack.added_at.desc())
+    )
+    rows = result.all()
+
+    return [
+        CollectionTrackResponse(
+            track_id=track.id,
+            spotify_id=track.spotify_id,
+            title=track.title,
+            artist=track.artist,
+            album=track.album,
+            release_year=track.release_year,
+            added_at=str(ct.added_at),
+            source=ct.source,
+        )
+        for track, ct in rows
+    ]
