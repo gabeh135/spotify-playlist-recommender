@@ -18,7 +18,7 @@ class TrackCandidate(BaseModel):
 
 
 @router.get("/search", response_model=list[TrackCandidate])
-async def search_tracks(q: str = Query(..., min_length=1), limit: int = Query(20, ge=1, le=50)):
+async def search_tracks(q: str = Query(..., min_length=1), limit: int = Query(10, ge=1, le=10)):
     try:
         raw = spotify.search_tracks(q, limit)
     except Exception as e:
