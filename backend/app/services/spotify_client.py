@@ -13,7 +13,7 @@ class SpotifyClient:
         offset = 0
         
         while len(results) < limit:
-            batch_size = min(50, limit - len(results))
+            batch_size = min(50, limit - len(results))  # Spotify caps search results at 50 per request
             response = self._sp.search(q=query, type="track", limit=batch_size, offset=offset)
 
             items = response["tracks"]["items"]
@@ -27,7 +27,7 @@ class SpotifyClient:
 
     def get_artist_genres(self, artist_ids: list[str]) -> dict[str, list[str]]:
         genres = {}
-        for i in range(0, len(artist_ids), 50):
+        for i in range(0, len(artist_ids), 50):  # batch artists endpoint accepts at most 50 IDs
             chunk = artist_ids[i:i+50]
             response = self._sp.artists(chunk)
 
@@ -45,6 +45,7 @@ class SpotifyClient:
 
         response = self._sp.playlist_items(playlist_id, limit=100)
         while response:
+            # Spotify returns null entries for locally unavailable or removed tracks
             items = [item["track"] for item in response["items"] if item["track"] is not None]
             tracks.extend(items)
             response = self._sp.next(response) if response["next"] else None

@@ -28,6 +28,7 @@ class LastFmClient:
         if not raw:
             return []
 
+        # necessary as Last.fm returns an object instead of a list when there's only one tag
         tags = raw if isinstance(raw, list) else [raw]
         return [tag["name"].lower() for tag in tags[:limit]]
 
@@ -38,6 +39,8 @@ class LastFmClient:
 
         for artist, title in tracks:
             results[(artist, title)] = self.get_track_tags(artist, title, limit)
+
+            # avoid rate limiting with Last.fm's API
             time.sleep(0.2)
 
         return results

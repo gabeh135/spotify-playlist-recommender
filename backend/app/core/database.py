@@ -4,6 +4,7 @@ from sqlalchemy.orm import DeclarativeBase
 from app.core.config import settings
 
 engine = create_async_engine(
+    # asyncpg requires the +asyncpg driver prefix
     settings.active_database_url.replace("postgresql://", "postgresql+asyncpg://"),
     echo=settings.environment == "development",
     pool_size=5,
@@ -13,6 +14,7 @@ engine = create_async_engine(
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,
     class_=AsyncSession,
+    # prevents attribute expiry after commit, which would trigger lazy loads that fail in async
     expire_on_commit=False,
 )
 

@@ -30,6 +30,7 @@ async def search_tracks(q: str = Query(..., min_length=1), limit: int = Query(20
         rd = t.get("album", {}).get("release_date", "")
         if rd:
             try:
+                # Spotify returns dates as YYYY, YYYY-MM, or YYYY-MM-DD
                 release_year = int(rd[:4])
             except ValueError:
                 pass

@@ -10,6 +10,9 @@ async def get_current_user(
     x_user_id: str = Header(...),
     db: AsyncSession = Depends(get_db),
 ) -> User:
+    """Resolves user from the X-User-ID header (anonymous UUID from localStorage)"""
+    # TODO: Replace with Spotify OAuth validation in Phase 5
+
     result = await db.execute(select(User).where(User.id == x_user_id))
     user = result.scalar_one_or_none()
     if not user:

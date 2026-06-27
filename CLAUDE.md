@@ -56,9 +56,18 @@ backend/
       spotify_client.py   ✓ done — search_tracks, get_artist_genres, get_playlist_tracks
       lastfm_client.py    ✓ done — get_track_tags, get_track_tags_batch
     models.py             ✓ done — redesigned schema (see data model section below)
+    api/
+      routes/
+        users.py          ✓ done — POST /users
+        tracks.py         ✓ done — GET /tracks/search
+        collection.py     ✓ done — POST /collection/tracks, POST /collection/import/playlist, GET /collection/tracks
+        playlists.py      ✓ done — POST /playlists/generate, GET /playlists/{id}
+    ml/
+      encoders/embed.py   ✓ done — embed_text() via all-MiniLM-L6-v2
+      retrieval.py        ✓ done — search_collection() pgvector cosine similarity
     main.py               ✓ done — FastAPI app, CORS, /health endpoint with DB check
   alembic/                ✓ done — env.py wired to async engine + models
-  alembic/versions/       ✗ stale — old migrations; drop DB and run fresh migration
+  alembic/versions/       ✓ done — fresh migration (d08423fdd3cb)
   requirements.txt        ✓ done
 docker-compose.yml        ✓ done
 .env / .env.example       ✓ done
@@ -85,23 +94,24 @@ In existing terminals: `export NVM_DIR="$HOME/.nvm" && source "$NVM_DIR/nvm.sh"`
 - [x] FastAPI scaffold (config, database, main, health check)
 - [x] React scaffold (Vite + Tailwind + React Router, Node 22 via nvm)
 
-### Phase 1 — Data Foundation ← **in progress**
+### Phase 1 — Data Foundation ✓
 - [x] SQLAlchemy models: redesigned schema (Track, User, CollectionTrack, IntentSession, ClusteringRun, Playlist, PlaylistTrack, FeedbackEvent)
 - [x] Alembic setup
 - [x] spotify_client.py service (search_tracks, get_artist_genres, get_playlist_tracks)
 - [x] lastfm_client.py service (get_track_tags, get_track_tags_batch)
-- [ ] Drop DB, delete old alembic versions, run fresh migration
-- [ ] Anonymous user creation endpoint (POST /users → returns UUID stored in localStorage)
-- [ ] Track search endpoint (GET /tracks/search?q=... → Spotify search, returns candidates)
-- [ ] Add-to-collection endpoint (POST /collection/tracks — dedup, enrich with Last.fm, embed, store)
-- [ ] Playlist import endpoint (POST /collection/import/playlist — batch version of above)
-- [ ] GET /collection — returns user's current track list (for frontend display)
+- [x] Drop DB, delete old alembic versions, run fresh migration
+- [x] Anonymous user creation endpoint (POST /users → returns UUID stored in localStorage)
+- [x] Track search endpoint (GET /tracks/search?q=... → Spotify search, returns candidates)
+- [x] Add-to-collection endpoint (POST /collection/tracks — dedup, enrich with Last.fm, embed, store)
+- [x] Playlist import endpoint (POST /collection/import/playlist — batch version of above)
+- [x] GET /collection — returns user's current track list (for frontend display)
 
-### Phase 2 — Feature A: Targeted Playlist Generation
-- [ ] embed.py service (sentence-transformers, all-MiniLM-L6-v2)
-- [ ] retrieval.py (pgvector cosine similarity search scoped to user's collection)
-- [ ] POST /playlists/generate — embed prompt, ANN search, create Playlist + PlaylistTrack rows
-- [ ] GET /playlists/{id} — return playlist with tracks
+### Phase 2 — Feature A: Targeted Playlist Generation ← **in progress**
+- [x] embed.py service (sentence-transformers, all-MiniLM-L6-v2)
+- [x] retrieval.py (pgvector cosine similarity search scoped to user's collection)
+- [x] POST /playlists/generate — embed prompt, ANN search, create Playlist + PlaylistTrack rows
+- [x] GET /playlists/{id} — return playlist with tracks
+- [x] Documentation/comment pass (hard gate before Phase 3)
 
 ### Phase 3 — Feature B: Library Clustering
 - [ ] clustering.py (K-Means via sklearn, silhouette score for k estimation, outlier detection)

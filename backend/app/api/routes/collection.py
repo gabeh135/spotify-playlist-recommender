@@ -66,6 +66,7 @@ async def add_track(
         rd = raw.get("album", {}).get("release_date", "")
         if rd:
             try:
+                # Spotify returns dates as YYYY, YYYY-MM, or YYYY-MM-DD
                 release_year = int(rd[:4])
             except ValueError:
                 pass
@@ -89,7 +90,7 @@ async def add_track(
             enriched_at=datetime.now(timezone.utc),
         )
         db.add(track)
-        await db.flush()
+        await db.flush()  # need track.id before the CollectionTrack insert
 
     existing = await db.execute(
         select(CollectionTrack).where(
@@ -127,7 +128,7 @@ async def import_playlist(
     if not raw_tracks:
         raise HTTPException(status_code=404, detail="Playlist not found or empty")
 
-    raw_tracks = [t for t in raw_tracks if t.get("id")]
+    raw_tracks = [t for t in raw_tracks if t.get("id")]  # Spotify includes null entries for unavailable tracks
 
     spotify_ids = [t["id"] for t in raw_tracks]
     result = await db.execute(select(Track).where(Track.spotify_id.in_(spotify_ids)))
@@ -135,7 +136,7 @@ async def import_playlist(
 
     new_raw = [t for t in raw_tracks if t["id"] not in known_tracks]
 
-    artist_ids = list({t["artists"][0]["id"] for t in new_raw})
+    artist_ids = list({t["artists"][0]["id"] for t in new_raw})  # set dedup avoids redundant genre calls for shared artists
     genre_map = spotify.get_artist_genres(artist_ids) if artist_ids else {}
 
     track_pairs = [(t["artists"][0]["name"], t["name"]) for t in new_raw]
@@ -152,6 +153,7 @@ async def import_playlist(
         rd = raw.get("album", {}).get("release_date", "")
         if rd:
             try:
+                # Spotify returns dates as YYYY, YYYY-MM, or YYYY-MM-DD
                 release_year = int(rd[:4])
             except ValueError:
                 pass
@@ -176,7 +178,7 @@ async def import_playlist(
         db.add(track)
         new_tracks[raw["id"]] = track
 
-    await db.flush()
+    await db.flush()  # assigns PKs to new Track rows before CollectionTrack inserts reference them
 
     all_tracks = {**known_tracks, **new_tracks}
 
