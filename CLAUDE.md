@@ -33,6 +33,12 @@ Phase 1 uses an anonymous user UUID stored in localStorage — no login required
 
 Spotify refresh tokens expire after **6 months** (policy introduced June 2026). Store `spotify_authorized_at` on the User row (Spotify doesn't expose token issuance timestamps) to detect expiry and prompt re-auth. Tokens stored as plaintext in Supabase; Supabase at-rest encryption is sufficient for portfolio scale.
 
+## Spotify API notes
+- `GET /artists` (batch) was removed; `get_artist_genres()` calls the single-artist endpoint per ID
+- Search limit is capped at 10 results per request
+- Playlist item field is `item["item"]`, not `item["track"]`
+- `popularity` field no longer available on Track or Artist objects
+
 ## Infrastructure
 - **Docker Compose** runs local Postgres (pgvector/pgvector:pg16) + Redis for development
 - **Supabase** is production Postgres — `DATABASE_URL` in `.env` points there
@@ -115,7 +121,6 @@ In existing terminals: `export NVM_DIR="$HOME/.nvm" && source "$NVM_DIR/nvm.sh"`
 
 ### Phase 3 — Feature B: Library Clustering
 - [ ] clustering.py (K-Means via sklearn, silhouette score for k estimation, outlier detection)
-- [ ] LLM playlist naming (Claude Haiku — pass top 15 tracks per cluster, get name + description)
 - [ ] POST /library/cluster — run clustering, write ClusteringRun + Playlists + PlaylistTracks
 
 ### Phase 4 — Frontend MVP
@@ -134,6 +139,7 @@ In existing terminals: `export NVM_DIR="$HOME/.nvm" && source "$NVM_DIR/nvm.sh"`
 - pgvector HNSW index tuning
 - Feedback loop (FeedbackEvent → preference signal)
 - LightGBM ranker
+- LLM playlist naming (Claude Haiku — pass top 15 tracks per cluster, get name + description)
 - Rate limiting, pagination, tests, README, demo video
 
 ## Data model
