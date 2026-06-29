@@ -63,7 +63,6 @@ def cluster_collection(track_ids: list[str], matrix, outlier_threshold: float = 
     max_k = min(10, n // 5)
     k = _find_optimal_k(matrix, max_k)
 
-    # TODO: explore random state
     kmeans = KMeans(n_clusters=k, random_state=42)
     kmeans.fit(matrix)
 
