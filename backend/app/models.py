@@ -38,7 +38,7 @@ class Track(Base):
     artist: Mapped[str] = mapped_column(String, nullable=False)
     album: Mapped[str] = mapped_column(String, nullable=False)
     release_year: Mapped[int | None] = mapped_column(Integer, nullable=True)
-
+    album_art_url: Mapped[str] = mapped_column(String, nullable=True)
     genres: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True)
     tags: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True)
     embedding: Mapped[list[float] | None] = mapped_column(Vector(384), nullable=True)

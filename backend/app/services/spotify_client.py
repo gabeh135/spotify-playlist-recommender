@@ -35,8 +35,14 @@ class SpotifyClient:
                 genres[artist_id] = []
         return genres
 
-    def get_track(self, spotify_id: str) -> dict:
-        return self._sp.track(spotify_id)
+    def get_track(self, spotify_id: str) -> dict | None:
+        try:
+            return self._sp.track(spotify_id)
+        except Exception:
+            try:
+                return self._sp.track(spotify_id)
+            except Exception:
+                return None
 
     def get_playlist_tracks(self, playlist_id: str) -> list[dict]:
         tracks = []

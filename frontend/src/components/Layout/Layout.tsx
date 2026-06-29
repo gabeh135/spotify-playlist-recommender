@@ -1,16 +1,16 @@
 import { NavLink, Outlet } from "react-router-dom"
 
 const navLinks = [
-  { to: "/", label: "Home" },
+  { to: "/", label: "Collection" },
   { to: "/generate", label: "Generate" },
-  { to: "/recommendations", label: "Recommendations" },
+  { to: "/sort", label: "Sort Library" },
 ]
 
 export default function Layout() {
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100">
-      <nav className="border-b border-gray-800 px-6 py-4 flex items-center gap-8">
-        <span className="font-semibold tracking-tight">Playlist Recommender</span>
+    <div className="min-h-screen bg-background text-foreground">
+      <nav className="border-b border-border px-6 py-4 flex items-center gap-8">
+        <span className="font-semibold tracking-tight text-foreground">Playlist Recommender</span>
         <div className="flex gap-6">
           {navLinks.map(({ to, label }) => (
             <NavLink
@@ -18,7 +18,9 @@ export default function Layout() {
               to={to}
               end={to === "/"}
               className={({ isActive }) =>
-                isActive ? "text-white" : "text-gray-400 hover:text-gray-200 transition-colors"
+                isActive
+                  ? "text-primary font-medium"
+                  : "text-muted-foreground hover:text-foreground transition-colors"
               }
             >
               {label}
@@ -26,7 +28,7 @@ export default function Layout() {
           ))}
         </div>
       </nav>
-      <main className="px-6 py-8">
+      <main className="px-6 py-8 max-w-4xl mx-auto">
         <Outlet />
       </main>
     </div>

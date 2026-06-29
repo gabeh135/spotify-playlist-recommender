@@ -55,13 +55,21 @@ def _outlier_indices(matrix, labels, centroids, threshold_multiplier: float) -> 
 
 
 # TODO: move this call into an async Celery task
-def cluster_collection(track_ids: list[str], matrix, outlier_threshold: float = 1.5,) -> list[ClusterResult]:
+def cluster_collection(
+    track_ids: list[str],
+    matrix,
+    outlier_threshold: float = 1.5,
+    n_clusters: int | None = None,
+) -> list[ClusterResult]:
     n = len(track_ids)
     if n < MIN_TRACKS:
         raise ValueError(f"Need at least {MIN_TRACKS} tracks to cluster (got {n})")
 
-    max_k = min(10, n // 5)
-    k = _find_optimal_k(matrix, max_k)
+    if n_clusters is not None:
+        k = n_clusters
+    else:
+        max_k = max(2, n // 8)
+        k = _find_optimal_k(matrix, max_k)
 
     kmeans = KMeans(n_clusters=k, random_state=42)
     kmeans.fit(matrix)

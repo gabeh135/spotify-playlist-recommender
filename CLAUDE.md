@@ -44,6 +44,8 @@ Spotify refresh tokens expire after **6 months** (policy introduced June 2026). 
 - **Supabase** is production Postgres — `DATABASE_URL` in `.env` points there
 - `LOCAL_DATABASE_URL` points to Docker Postgres; `config.py` picks the right one based on `ENVIRONMENT`
 - **WSL gotcha**: system PostgreSQL 14 was pre-installed and claimed port 5432. Disabled via `sudo systemctl disable postgresql@14-main`. Docker now owns 5432.
+- **Docker Desktop WSL integration**: must be enabled in Docker Desktop → Settings → Resources → WSL Integration. Gets reset on some reboots/reinstalls — re-enable and restart Docker Desktop if `docker` command disappears from WSL.
+- **Supabase IPv6**: Supabase's direct DB host (`db.xxx.supabase.co`) resolves to IPv6 only. WSL2 has no IPv6 routing by default. Use Docker local DB for development; Supabase for production only.
 - Docker Compose project name is `playlist-recommender` (set explicitly to avoid collisions)
 
 ## Environment
@@ -58,33 +60,44 @@ backend/
     core/
       config.py           ✓ done — pydantic-settings, active_database_url property
       database.py         ✓ done — async SQLAlchemy engine, Base, get_db dependency
+      deps.py             ✓ done — get_current_user dependency (X-User-ID header → User row)
     services/
-      spotify_client.py   ✓ done — search_tracks, get_artist_genres, get_playlist_tracks
+      spotify_client.py   ✓ done — search_tracks, get_artist_genres, get_playlist_tracks, get_track (with retry)
       lastfm_client.py    ✓ done — get_track_tags, get_track_tags_batch
     models.py             ✓ done — redesigned schema (see data model section below)
     api/
       routes/
         users.py          ✓ done — POST /users
-        tracks.py         ✓ done — GET /tracks/search
+        tracks.py         ✓ done — GET /tracks/search (returns album_art_url)
         collection.py     ✓ done — POST /collection/tracks, POST /collection/import/playlist, GET /collection/tracks
-        playlists.py      ✓ done — POST /playlists/generate, GET /playlists/{id}
+        playlists.py      ✓ done — POST /playlists/generate, GET /playlists/{id} (both return album_art_url)
+        cluster.py        ✓ done — POST /cluster (sync K-Means, returns ClusteringRun + Playlists)
     ml/
-      encoders/embed.py   ✓ done — embed_text() via all-MiniLM-L6-v2
-      retrieval.py        ✓ done — search_collection() pgvector cosine similarity
+      encoders/embed.py        ✓ done — embed_text() via all-MiniLM-L6-v2
+      retrieval.py             ✓ done — search_collection() pgvector cosine similarity
+      clustering/clustering.py ✓ done — cluster_collection(), load_embeddings(), silhouette k-selection, outlier detection
     main.py               ✓ done — FastAPI app, CORS, /health endpoint with DB check
   alembic/                ✓ done — env.py wired to async engine + models
-  alembic/versions/       ✓ done — fresh migration (d08423fdd3cb)
+  alembic/versions/       ✓ done — migrations up to date (album_art_url added)
   requirements.txt        ✓ done
 docker-compose.yml        ✓ done
 .env / .env.example       ✓ done
 frontend/
   src/
-    App.tsx                        ✓ done — BrowserRouter, layout route, 4 page routes
-    components/Layout/Layout.tsx   ✓ done — nav bar + Outlet
-    pages/                         ✓ done — Home, Generate, Results, Recommendations (stubs)
-    index.css                      ✓ done — Tailwind directives only
-  tailwind.config.js               ✓ done
-  package.json                     ✓ done — react-router-dom, tailwindcss@3
+    App.tsx                        ✓ done — BrowserRouter, layout route, 3 page routes (Collection, Generate, Sort Library)
+    components/Layout/Layout.tsx   ✓ done — top nav (Collection / Generate / Sort Library)
+    components/ui/                 ✓ done — shadcn/radix-nova: button, input, slider
+    hooks/useUser.ts               ✓ done — anonymous UUID from localStorage, POST /users on first visit
+    lib/api.ts                     ✓ done — apiFetch() with X-User-ID header
+    lib/utils.ts                   ✓ done — shadcn cn() utility
+    pages/Collection.tsx           ✓ done — search, import playlist, track list with album art
+    pages/Generate.tsx             ✓ done — prompt input, track count slider, ranked results with album art
+    pages/SortLibrary.tsx          ← in progress
+    index.css                      ✓ done — Tailwind v4 + shadcn CSS vars (slate/indigo dark theme)
+  components.json                  ✓ done — shadcn config (radix-nova preset)
+  vite.config.ts                   ✓ done — @tailwindcss/vite plugin, @/ alias
+  tsconfig.app.json / tsconfig.json ✓ done — path aliases for shadcn
+  package.json                     ✓ done — Tailwind v4, shadcn, react-router-dom, Geist font
 ```
 
 ## Node version
@@ -112,22 +125,34 @@ In existing terminals: `export NVM_DIR="$HOME/.nvm" && source "$NVM_DIR/nvm.sh"`
 - [x] Playlist import endpoint (POST /collection/import/playlist — batch version of above)
 - [x] GET /collection — returns user's current track list (for frontend display)
 
-### Phase 2 — Feature A: Targeted Playlist Generation ← **in progress**
+### Phase 2 — Feature A: Targeted Playlist Generation ✓
 - [x] embed.py service (sentence-transformers, all-MiniLM-L6-v2)
 - [x] retrieval.py (pgvector cosine similarity search scoped to user's collection)
 - [x] POST /playlists/generate — embed prompt, ANN search, create Playlist + PlaylistTrack rows
 - [x] GET /playlists/{id} — return playlist with tracks
 - [x] Documentation/comment pass (hard gate before Phase 3)
 
-### Phase 3 — Feature B: Library Clustering
-- [ ] clustering.py (K-Means via sklearn, silhouette score for k estimation, outlier detection)
-- [ ] POST /library/cluster — run clustering, write ClusteringRun + Playlists + PlaylistTracks
+### Phase 3 — Feature B: Library Clustering ✓
+- [x] clustering.py (K-Means via sklearn, silhouette score for k estimation, outlier detection)
+- [x] POST /cluster — run clustering, write ClusteringRun + Playlists + PlaylistTracks
 
-### Phase 4 — Frontend MVP
-- [ ] Collection view (search + import UI, track list)
-- [ ] Targeted generation UI (prompt input → playlist result)
-- [ ] Clustering UI (trigger clustering → view generated playlists)
+### Phase 4 — Frontend MVP ← **in progress**
+- [x] Collection view (search + import UI, track list with album art)
+- [x] Targeted generation UI (prompt input, track count slider, ranked results with album art)
+- [ ] Sort Library UI (see design decisions below)
 - [ ] Deploy backend to Fly.io, frontend to Vercel
+
+#### Sort Library UI — design decisions
+Two inputs before triggering:
+- **Number of playlists**: "Auto" (default, silhouette-score k-selection) or manual override. Manual range is 2 to `floor(collection_size / 8)` — enforces at least ~8 tracks per playlist. Show a warning if the chosen k would produce very small playlists. Update clustering code: current `max_k = min(10, n // 5)` is too conservative; change to `min(n // 8, user_supplied_max)` so large collections can produce more playlists.
+- **Completeness**: slider (Loose → Strict) — maps to `outlier_threshold`; loose = more tracks included even if weakly fitting; strict = only core cluster members. Default: somewhere in the middle.
+
+After triggering:
+- Descriptive loading state ("Analyzing your collection...", "Building playlists...") — clustering is synchronous and can take several seconds for large collections.
+- Results: playlist cards each with a name and a ranked track list with album art.
+- Each track appears in exactly one playlist (hard K-Means assignment). Soft assignment (tracks near two centroids in both) deferred to Phase 6+.
+
+LLM naming is a minimal afterthought: after clustering, pass the top 5 track titles per cluster to Claude Haiku and get a short playlist name back. If it fails, fall back to "Playlist 1", "Playlist 2", etc. No user inputs feed into it. No description needed — name only.
 
 ### Phase 5 — Spotify OAuth
 - [ ] Authorization code flow (connect Spotify account)
@@ -138,14 +163,15 @@ In existing terminals: `export NVM_DIR="$HOME/.nvm" && source "$NVM_DIR/nvm.sh"`
 ### Phase 6+
 - pgvector HNSW index tuning
 - Feedback loop (FeedbackEvent → preference signal)
-- LightGBM ranker
-- LLM playlist naming (Claude Haiku — pass top 15 tracks per cluster, get name + description)
+- LightGBM ranker — fixes lexical overlap issues in cosine similarity (e.g. a country song matching a "rap" prompt due to title word overlap)
+- Soft cluster assignment — tracks near two centroids can appear in both playlists
 - Rate limiting, pagination, tests, README, demo video
 
 ## Data model
 
 ### Track (global dedup by spotify_id)
 - id (UUID PK), spotify_id (str, unique), title, artist, album, release_year
+- album_art_url (str, nullable — largest image from Spotify album object)
 - genres (ARRAY str — from Spotify artist endpoint), tags (ARRAY str — from Last.fm)
 - embedding (Vector(384) — from "{title} by {artist}. Genres: {genres}. Tags: {tags}")
 - enriched_at (datetime — when Last.fm tags were fetched)

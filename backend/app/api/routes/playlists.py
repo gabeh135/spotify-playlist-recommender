@@ -24,6 +24,7 @@ class PlaylistTrackItem(BaseModel):
     title: str
     artist: str
     album: str
+    album_art_url: str | None
 
 
 class GenerateResponse(BaseModel):
@@ -81,6 +82,7 @@ async def generate_playlist(
                 title=track.title,
                 artist=track.artist,
                 album=track.album,
+                album_art_url=track.album_art_url,
             )
             for i, (track, score) in enumerate(results)
         ],
@@ -118,6 +120,7 @@ async def get_playlist(
                 title=track.title,
                 artist=track.artist,
                 album=track.album,
+                album_art_url=track.album_art_url,
             )
             for track, pt in rows.all()
         ],

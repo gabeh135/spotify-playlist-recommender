@@ -39,6 +39,7 @@ class CollectionTrackResponse(BaseModel):
     artist: str
     album: str
     release_year: int | None
+    album_art_url: str | None
     added_at: str
     source: str
 
@@ -71,6 +72,9 @@ async def add_track(
             except ValueError:
                 pass
 
+        images = raw.get("album", {}).get("images", [])
+        album_art_url = images[0]["url"] if images else None
+
         genre_map = spotify.get_artist_genres([artist_id])
         genres = genre_map.get(artist_id, [])
         tags = lastfm.get_track_tags(artist_name, title)
@@ -84,6 +88,7 @@ async def add_track(
             artist=artist_name,
             album=album,
             release_year=release_year,
+            album_art_url=album_art_url,
             genres=genres,
             tags=tags,
             embedding=embedding,
@@ -158,6 +163,9 @@ async def import_playlist(
             except ValueError:
                 pass
 
+        images = raw.get("album", {}).get("images", [])
+        album_art_url = images[0]["url"] if images else None
+
         genres = genre_map.get(artist_id, [])
         tags = tags_map.get((artist_name, title), [])
 
@@ -170,6 +178,7 @@ async def import_playlist(
             artist=artist_name,
             album=album,
             release_year=release_year,
+            album_art_url=album_art_url,
             genres=genres,
             tags=tags,
             embedding=embedding,
@@ -229,6 +238,7 @@ async def get_collection(
             artist=track.artist,
             album=track.album,
             release_year=track.release_year,
+            album_art_url=track.album_art_url,
             added_at=str(ct.added_at),
             source=ct.source,
         )
