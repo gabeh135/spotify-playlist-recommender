@@ -1,0 +1,8 @@
+frontend/
+backend/.env
+backend/.cache
+**/__pycache__
+**/*.pyc
+**/*.pyo
+.git
+.gitignore
