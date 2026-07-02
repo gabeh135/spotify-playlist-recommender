@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -60,7 +61,7 @@ async def add_track(
     track = result.scalar_one_or_none()
 
     if track is None:
-        raw = spotify.get_track(body.spotify_id)
+        raw = await asyncio.to_thread(spotify.get_track, body.spotify_id)
         if raw is None:
             raise HTTPException(status_code=404, detail="Track not found on Spotify")
 
@@ -81,9 +82,9 @@ async def add_track(
         images = raw.get("album", {}).get("images", [])
         album_art_url = images[0]["url"] if images else None
 
-        genre_map = spotify.get_artist_genres([artist_id])
+        genre_map = await asyncio.to_thread(spotify.get_artist_genres, [artist_id])
         genres = genre_map.get(artist_id, [])
-        tags = lastfm.get_track_tags(artist_name, title)
+        tags = await asyncio.to_thread(lastfm.get_track_tags, artist_name, title)
 
         embedding_input = f"{title} by {artist_name}. Genres: {', '.join(genres)}. Tags: {', '.join(tags)}"
         embedding = embed_text(embedding_input)
@@ -132,7 +133,7 @@ async def import_playlist(
     playlist_id = _parse_playlist_id(body.playlist_url)
 
     try:
-        raw_tracks = spotify.get_playlist_tracks(playlist_id)
+        raw_tracks = await asyncio.to_thread(spotify.get_playlist_tracks, playlist_id)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Spotify error: {e}")
 
@@ -148,10 +149,10 @@ async def import_playlist(
     new_raw = [t for t in raw_tracks if t["id"] not in known_tracks]
 
     artist_ids = list({t["artists"][0]["id"] for t in new_raw})  # set dedup avoids redundant genre calls for shared artists
-    genre_map = spotify.get_artist_genres(artist_ids) if artist_ids else {}
+    genre_map = await asyncio.to_thread(spotify.get_artist_genres, artist_ids) if artist_ids else {}
 
     track_pairs = [(t["artists"][0]["name"], t["name"]) for t in new_raw]
-    tags_map = lastfm.get_track_tags_batch(track_pairs) if track_pairs else {}
+    tags_map = await asyncio.to_thread(lastfm.get_track_tags_batch, track_pairs) if track_pairs else {}
 
     new_tracks: dict[str, Track] = {}
     for raw in new_raw:
