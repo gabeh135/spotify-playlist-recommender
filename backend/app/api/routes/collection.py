@@ -87,7 +87,7 @@ async def add_track(
         tags = await asyncio.to_thread(lastfm.get_track_tags, artist_name, title)
 
         embedding_input = f"{title} by {artist_name}. Genres: {', '.join(genres)}. Tags: {', '.join(tags)}"
-        embedding = embed_text(embedding_input)
+        embedding = await asyncio.to_thread(embed_text, embedding_input)
 
         track = Track(
             spotify_id=body.spotify_id,
@@ -177,7 +177,7 @@ async def import_playlist(
         tags = tags_map.get((artist_name, title), [])
 
         embedding_input = f"{title} by {artist_name}. Genres: {', '.join(genres)}. Tags: {', '.join(tags)}"
-        embedding = embed_text(embedding_input)
+        embedding = await asyncio.to_thread(embed_text, embedding_input)
 
         track = Track(
             spotify_id=raw["id"],
